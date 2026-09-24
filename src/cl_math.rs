@@ -175,7 +175,11 @@ fn get_amount1_delta(sqrt_a: U256, sqrt_b: U256, liquidity: u128, round_up: bool
     if round_up {
         mul_div_rounding_up(l, delta, Q96).unwrap_or(U256::ZERO)
     } else {
-        (l * delta) / Q96
+        // Floor half must widen into 512 bits like the on-chain
+        // FullMath.mulDiv: `liquidity * (hi-lo)` can reach ~2^288,
+        // overflowing U256 exactly when pools are deepest.
+
+        mul_div(l, delta, Q96).unwrap_or(U256::ZERO)
     }
 }
 
@@ -210,7 +214,13 @@ fn get_next_sqrt_price_from_amount0(
             return None;
         }
         let denominator = numerator1.checked_add(product)?;
-        numerator1.checked_mul(sqrt_p).map(|n| n / denominator)
+        // The intermediate `numerator1 * sqrt_p` needs up to ~2^384
+        // bits, so it must widen into 512 like the on-chain
+        // FullMath.mulDivRoundingUp — a plain U256 multiply overflows
+        // on deep pools and floors instead of ceiling the result.
+
+
+        mul_div_rounding_up(numerator1, sqrt_p, denominator)
     } else {
         // require(product / amount == sqrtP && numerator1 > product)
         if product / amount != sqrt_p || numerator1 <= product {

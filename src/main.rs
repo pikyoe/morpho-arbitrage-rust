@@ -1867,11 +1867,16 @@ where
                             let tolerance = *local_out * U256::from(CL_AUTH_QUOTE_TOLERANCE_BPS)
                                 / U256::from(10_000u64);
                             if diff > tolerance {
+                                let diff_bps = if local_out.is_zero() {
+                                    "n/a".to_string()
+                                } else {
+                                    (diff * U256::from(10_000u64) / *local_out).to_string()
+                                };
                                 warn!(
                                     pool = %pool,
                                     local = %local_out,
                                     authoritative = %auth,
-                                    diff_bps = %(diff * U256::from(10_000u64) / *local_out),
+                                    diff_bps = %diff_bps,
                                     "local CL quote diverged from Quoter; dropping state and rescanning"
                                 );
                                 cache.state.remove(pool);
