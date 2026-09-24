@@ -246,11 +246,13 @@ fn get_next_sqrt_price_from_amount1(
     }
     let l = U256::from(liquidity);
     if add {
-        // quotient fits uint160 required on-chain; amount/liquidity ≤ 2^128.
+        // As on-chain FullMath.mulDiv(amount, Q96, liquidity): widen into
+        // 512 bits like the amount0 counterpart, lest `amount * Q96`
+        // overflow in U256 (amount ≤u128::MAX checked below/.
         if amount > U256::from(u128::MAX) {
             return None;
         }
-        let quotient = (amount << 96) / l;
+        let quotient = mul_div(amount, Q96, l)?;
         sqrt_p.checked_add(quotient)
     } else {
         let quotient = mul_div_rounding_up(amount, Q96, l)?;
