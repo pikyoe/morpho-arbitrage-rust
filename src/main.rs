@@ -1665,8 +1665,25 @@ where
         // Morpho flashloan + two router swaps path.
         let outcome = if cfg.dry_run {
             const DRY_RUN_GAS_UNITS: u64 = 400_000;
-            let l2 = U256::from(DRY_RUN_GAS_UNITS) * gas_price;
-            GasOutcome::Priced(l2 + l1_fee)
+            // R1: same checked arithmetic as the live path below. A plain
+            // `*`/`+` on U256 panics on overflow in debug and wraps
+            // silently in release; overflow now rejects this candidate
+            // instead.
+            match U256::from(DRY_RUN_GAS_UNITS)
+                .checked_mul(gas_price)
+                .and_then(|v| v.checked_add(l1_fee))
+            {
+                Some(cost) => GasOutcome::Priced(cost),
+                None => {
+                    info!(
+                        first = opp.first,
+                        second = opp.second,
+                        loan = %opp.loan_amount,
+                        "candidate rejected: gas cost overflow"
+                    );
+                    GasOutcome::Rejected
+                }
+            }
         } else {
             // Two-stage build: estimate gas with a provisional params
             // (minProfit barely affects calldata size/gas), then rebuild below
