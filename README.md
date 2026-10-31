@@ -639,9 +639,12 @@ Tips produksi:
   tidak mengunci kontrak permanen. Bot otomatis memvalidasi `owner()` ulang
   secara periodik dan berhenti dengan error eksplisit bila kontrak berpindah
   ke key yang tidak dipegangnya — lihat bagian transfer kepemilikan.
-- Reentrancy guard (`nonReentrant`) pada `execute`/`onMorphoFlashLoan`/`sweep`/`sweepETH`
-  — token dengan transfer hook tidak bisa menyusup masuk ulang ke tengah
-  flashloan.
+- Reentrancy guard (`nonReentrant`) pada `execute`/`sweep`/`sweepETH`;
+  `onMorphoFlashLoan` memakai pemeriksaan manual yang setara — callback
+  ditolak kecuali `_reentrancyStatus` sedang `_ENTERED`, artinya callback
+  hanya bisa jalan di dalam `execute`. Modifier `nonReentrant` tidak bisa
+  dipakai di callback karena `execute` sudah memegang status `_ENTERED`
+  saat callback dipanggil (modifier itu justru akan menolaknya).
 - Event `ArbExecuted`/`Swept`/`OwnershipTransfer*` ter-emit untuk monitoring
   off-chain. **Bot memverifikasi `ArbExecuted` pada receipt**: transaksi yang
   mined tapi tidak memancarkan event (callback flash loan tidak pernah jalan)

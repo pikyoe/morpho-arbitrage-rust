@@ -1742,16 +1742,35 @@ where
                 }
             } {
                 Ok(gas_estimate) => {
-                    let gas_cost = gas_estimate * gas_price + l1_fee;
-                    debug!(
-                        gas_units = ?gas_estimate,
-                        gas_price = %gas_price,
-                        l1_fee = %l1_fee,
-                        gas_cost = %gas_cost,
-                        sim_block = ?sim_block,
-                        "gas estimate for candidate"
-                    );
-                    GasOutcome::Priced(gas_cost)
+                    // P2-2: checked arithmetic. A plain `*`/`+` on U256
+                    // panics on overflow in debug and wraps silently in
+                    // release; either way the scan loop dies or misprices
+                    // gas. Overflow now rejects this candidate instead.
+                    match gas_estimate
+                        .checked_mul(gas_price)
+                        .and_then(|v| v.checked_add(l1_fee))
+                    {
+                        Some(gas_cost) => {
+                            debug!(
+                                gas_units = ?gas_estimate,
+                                gas_price = %gas_price,
+                                l1_fee = %l1_fee,
+                                gas_cost = %gas_cost,
+                                sim_block = ?sim_block,
+                                "gas estimate for candidate"
+                            );
+                            GasOutcome::Priced(gas_cost)
+                        }
+                        None => {
+                            info!(
+                                first = opp.first,
+                                second = opp.second,
+                                loan = %opp.loan_amount,
+                                "candidate rejected: gas cost overflow"
+                            );
+                            GasOutcome::Rejected
+                        }
+                    }
                 }
                 Err(e) => {
                     info!(
