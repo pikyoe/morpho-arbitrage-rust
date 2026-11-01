@@ -690,6 +690,17 @@ impl Config {
             .map(|s| U256::from_str(&s))
             .transpose()
             .map_err(|e| eyre!("invalid GAS_PRICE_WEI: {e}"))?;
+        // P2-2: reject absurd gas prices up front. Without a cap, a typo
+        // (or a wild RPC value) flows into `gas_estimate * gas_price` in
+        // main.rs, where U256 arithmetic panics on overflow in debug and
+        // wraps silently in release — either killing the scan loop or
+        // mispricing gas. 1000 gwei = 10^12 wei, far above any realistic
+        // Base fee, so this cap never binds in normal operation.
+        if let Some(gp) = gas_price_wei {
+            if gp > U256::from(1_000_000_000_000u64) {
+                return Err(eyre!("GAS_PRICE_WEI {gp} exceeds 1000 gwei cap"));
+            }
+        }
 
         let slippage_bps = env::var("SLIPPAGE_BPS")
             .ok()
